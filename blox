@@ -1,0 +1,651 @@
+--[[
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║           BLOX STRIKE                                        ║
+║           PHANTOM PANEL — ELITE EDITION                      ║
+║                                                              ║
+║           Authorized User: 9266010098                        ║
+║           Classification: OWNER ONLY                         ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+]]
+
+-- ══════════════════════════════════════════
+-- SERVICES
+-- ══════════════════════════════════════════
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser      = game:GetService("VirtualUser")
+local Lighting         = game:GetService("Lighting")
+local TeleportService  = game:GetService("TeleportService")
+local ReplicatedStorage= game:GetService("ReplicatedStorage")
+
+local LP  = Players.LocalPlayer
+local Cam = workspace.CurrentCamera
+
+if LP.UserId ~= 9266010098 then return end
+
+-- ══════════════════════════════════════════
+-- LOAD UI
+-- ══════════════════════════════════════════
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
+
+local Connections  = {}
+local DrawnObjects = {}
+local Active       = true
+
+-- ══════════════════════════════════════════
+-- CONFIGURATION
+-- ══════════════════════════════════════════
+local Config = {
+
+    ESP = {
+        Enabled         = false,
+        Boxes           = true,
+        BoxFill         = false,
+        Names           = true,
+        Distance        = true,
+        HealthBars      = true,
+        HeadDot         = true,
+        Tracers         = false,
+        Skeleton        = false,
+        VisibilityCheck = false,
+        RainbowMode     = false,
+        TeamColor       = true,
+        Color           = Color3.fromRGB(255, 50, 50),
+        EnemyColor      = Color3.fromRGB(255, 50, 50),
+        TeamCol         = Color3.fromRGB(50, 200, 255),
+    },
+
+    Aimbot = {
+        Enabled       = false,
+        FOV           = 150,
+        ShowFOV       = true,
+        FOVColor      = Color3.fromRGB(255, 255, 255),
+        Smoothness    = 0.15,
+        Key           = Enum.UserInputType.MouseButton2,
+        TargetPart    = "Head",
+        TriggerBot    = false,
+        VisibleOnly   = false,
+        NoRecoil      = false,
+        RapidFire     = false,
+        InfAmmo       = false,
+    },
+
+    Player = {
+        SpeedEnabled  = false,
+        SpeedValue    = 50,
+        InfJump       = false,
+        NoClip        = false,
+        FlyEnabled    = false,
+        FlySpeed      = 80,
+        GodMode       = false,
+        AntiAFK       = true,
+    },
+
+    Skins = {
+        GunSkin       = "rbxassetid://0",
+        KnifeSkin     = "rbxassetid://0",
+        GunEnabled    = false,
+        KnifeEnabled  = false,
+    },
+
+}
+
+-- ══════════════════════════════════════════
+-- UTILITIES
+-- ══════════════════════════════════════════
+local function GetChar()   return LP.Character end
+local function GetRoot()   local c=GetChar() return c and c:FindFirstChild("HumanoidRootPart") end
+local function GetHum()    local c=GetChar() return c and c:FindFirstChildOfClass("Humanoid") end
+local function GetPRoot(p) return p.Character and p.Character:FindFirstChild("HumanoidRootPart") end
+
+local function IsAlive(p)
+    local c=p.Character
+    local h=c and c:FindFirstChildOfClass("Humanoid")
+    return h and h.Health > 0
+end
+
+local function IsEnemy(p)
+    return p.Team ~= LP.Team
+end
+
+local function GetDist(p)
+    local r=GetRoot() local pr=GetPRoot(p)
+    return (r and pr) and math.floor((r.Position-pr.Position).Magnitude) or 0
+end
+
+local RainbowHue = 0
+local function NextRainbow()
+    RainbowHue=(RainbowHue+0.003)%1
+    return Color3.fromHSV(RainbowHue,1,1)
+end
+
+local function Track(c) table.insert(Connections,c) return c end
+local function NewDrawing(k) local o=Drawing.new(k) table.insert(DrawnObjects,o) return o end
+
+local function IsVisible(part)
+    local root=GetRoot() if not root then return false end
+    local params=RaycastParams.new()
+    params.FilterDescendantsInstances={GetChar(), part.Parent}
+    params.FilterType=Enum.RaycastFilterType.Exclude
+    local dir=part.Position-root.Position
+    return workspace:Raycast(root.Position, dir.Unit*dir.Magnitude, params)==nil
+end
+
+local function HideDrawings(obj)
+    for k,v in pairs(obj) do
+        if k=="Bones" then for _,b in ipairs(v) do b.Visible=false end
+        elseif v.Visible~=nil then v.Visible=false end
+    end
+end
+
+-- ══════════════════════════════════════════
+-- UNLOAD
+-- ══════════════════════════════════════════
+local function Unload()
+    Active=false
+    for _,c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
+    for _,d in ipairs(DrawnObjects) do pcall(function() d:Remove() end) end
+    local hum=GetHum()
+    if hum then hum.WalkSpeed=16 hum.JumpPower=50 end
+    local char=GetChar()
+    if char then
+        for _,p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then p.CanCollide=true p.LocalTransparencyModifier=0 end
+        end
+    end
+    workspace.Gravity=196.2
+    local r=GetRoot()
+    if r then
+        local bv=r:FindFirstChild("PhantomBV") local bg=r:FindFirstChild("PhantomBG")
+        if bv then bv:Destroy() end if bg then bg:Destroy() end
+    end
+    OrionLib:MakeNotification({Name="Phantom Panel",Content="Session terminated. Goodbye.",Time=4})
+    task.wait(1)
+    OrionLib:Destroy()
+end
+
+-- ══════════════════════════════════════════
+-- FOV CIRCLE
+-- ══════════════════════════════════════════
+local FovCircle=NewDrawing("Circle")
+FovCircle.Thickness=1 FovCircle.Filled=false FovCircle.NumSides=256 FovCircle.Visible=false
+
+-- ══════════════════════════════════════════
+-- ESP SYSTEM
+-- ══════════════════════════════════════════
+local ESPCache={}
+local SkeletonMap={
+    {"Head","UpperTorso"},    {"UpperTorso","LowerTorso"},
+    {"UpperTorso","LeftUpperArm"},  {"LeftUpperArm","LeftLowerArm"},   {"LeftLowerArm","LeftHand"},
+    {"UpperTorso","RightUpperArm"}, {"RightUpperArm","RightLowerArm"}, {"RightLowerArm","RightHand"},
+    {"LowerTorso","LeftUpperLeg"},  {"LeftUpperLeg","LeftLowerLeg"},   {"LeftLowerLeg","LeftFoot"},
+    {"LowerTorso","RightUpperLeg"}, {"RightUpperLeg","RightLowerLeg"}, {"RightLowerLeg","RightFoot"},
+}
+
+local function BuildESP(player)
+    if player==LP then return end
+    if ESPCache[player] then
+        for k,o in pairs(ESPCache[player]) do
+            if k=="Bones" then for _,b in ipairs(o) do pcall(function() b:Remove() end) end
+            elseif o.Visible~=nil then pcall(function() o:Remove() end) end
+        end
+    end
+    local function D(t) return NewDrawing(t) end
+    local E={}
+    E.Box           = D("Square") E.Box.Thickness=1.2 E.Box.Filled=false
+    E.BoxFill       = D("Square") E.BoxFill.Filled=true E.BoxFill.Transparency=0.12 E.BoxFill.Thickness=0
+    E.CornerTL1     = D("Line") E.CornerTL1.Thickness=2
+    E.CornerTL2     = D("Line") E.CornerTL2.Thickness=2
+    E.CornerTR1     = D("Line") E.CornerTR1.Thickness=2
+    E.CornerTR2     = D("Line") E.CornerTR2.Thickness=2
+    E.CornerBL1     = D("Line") E.CornerBL1.Thickness=2
+    E.CornerBL2     = D("Line") E.CornerBL2.Thickness=2
+    E.CornerBR1     = D("Line") E.CornerBR1.Thickness=2
+    E.CornerBR2     = D("Line") E.CornerBR2.Thickness=2
+    E.Name          = D("Text") E.Name.Size=13 E.Name.Center=true E.Name.Outline=true E.Name.Font=Drawing.Fonts.UI
+    E.Dist          = D("Text") E.Dist.Size=11 E.Dist.Center=true E.Dist.Outline=true E.Dist.Font=Drawing.Fonts.UI E.Dist.Color=Color3.fromRGB(200,200,200)
+    E.HealthBG      = D("Square") E.HealthBG.Filled=true E.HealthBG.Color=Color3.fromRGB(15,15,15) E.HealthBG.Transparency=0.4 E.HealthBG.Thickness=0
+    E.HealthBar     = D("Square") E.HealthBar.Filled=true E.HealthBar.Thickness=0
+    E.HeadDot       = D("Circle") E.HeadDot.Radius=4 E.HeadDot.Filled=true E.HeadDot.NumSides=64 E.HeadDot.Thickness=1
+    E.HeadDotOutline= D("Circle") E.HeadDotOutline.Radius=5 E.HeadDotOutline.Filled=false E.HeadDotOutline.NumSides=64 E.HeadDotOutline.Thickness=1 E.HeadDotOutline.Color=Color3.fromRGB(0,0,0)
+    E.Tracer        = D("Line") E.Tracer.Thickness=1
+    E.Bones={}
+    for i=1,#SkeletonMap do
+        local l=D("Line") l.Thickness=0.8 l.Visible=false
+        table.insert(E.Bones,l)
+    end
+    for k,v in pairs(E) do if k~="Bones" and v.Visible~=nil then v.Visible=false end end
+    ESPCache[player]=E
+end
+
+local function InitPlayer(p)
+    BuildESP(p)
+    p.CharacterAdded:Connect(function() task.wait(0.5) BuildESP(p) end)
+    p.CharacterRemoving:Connect(function() if ESPCache[p] then HideDrawings(ESPCache[p]) end end)
+end
+
+-- ══════════════════════════════════════════
+-- RENDER LOOP
+-- ══════════════════════════════════════════
+Track(RunService.RenderStepped:Connect(function()
+    if not Active then return end
+
+    local ViewX=Cam.ViewportSize.X
+    local ViewY=Cam.ViewportSize.Y
+    local Center=Vector2.new(ViewX/2,ViewY/2)
+
+    FovCircle.Position=Center FovCircle.Radius=Config.Aimbot.FOV FovCircle.Color=Config.Aimbot.FOVColor
+    FovCircle.Visible=Config.Aimbot.ShowFOV and Config.Aimbot.Enabled
+
+    if Config.ESP.RainbowMode then NextRainbow() end
+
+    for player,E in pairs(ESPCache) do
+        if not player or not player.Parent then HideDrawings(E) continue end
+        local char=player.Character
+        local root=char and char:FindFirstChild("HumanoidRootPart")
+        local hum=char and char:FindFirstChildOfClass("Humanoid")
+        local head=char and char:FindFirstChild("Head")
+        if not(char and root and hum and hum.Health>0 and Config.ESP.Enabled) then HideDrawings(E) continue end
+
+        local rootSP,onScreen=Cam:WorldToViewportPoint(root.Position)
+        local headSP=Cam:WorldToViewportPoint(root.Position+Vector3.new(0,3,0))
+        local feetSP=Cam:WorldToViewportPoint(root.Position-Vector3.new(0,3,0))
+        if not onScreen then HideDrawings(E) continue end
+
+        local Col
+        if Config.ESP.VisibilityCheck then
+            Col=(head and IsVisible(head)) and Color3.fromRGB(50,255,100) or Color3.fromRGB(255,50,50)
+        elseif Config.ESP.RainbowMode then
+            Col=Color3.fromHSV(RainbowHue,1,1)
+        elseif Config.ESP.TeamColor then
+            Col=IsEnemy(player) and Config.ESP.EnemyColor or Config.ESP.TeamCol
+        else
+            Col=Config.ESP.Color
+        end
+
+        local SP=Vector2.new(rootSP.X,rootSP.Y)
+        local HP2D=Vector2.new(headSP.X,headSP.Y)
+        local FP2D=Vector2.new(feetSP.X,feetSP.Y)
+        local BH=math.abs(HP2D.Y-FP2D.Y) local BW=BH*0.52
+        local BX=SP.X-BW/2 local BY=HP2D.Y
+        local CLen=math.min(BW,BH)*0.22
+
+        E.CornerTL1.From=Vector2.new(BX,BY)        E.CornerTL1.To=Vector2.new(BX+CLen,BY)          E.CornerTL1.Color=Col E.CornerTL1.Visible=Config.ESP.Boxes
+        E.CornerTL2.From=Vector2.new(BX,BY)        E.CornerTL2.To=Vector2.new(BX,BY+CLen)          E.CornerTL2.Color=Col E.CornerTL2.Visible=Config.ESP.Boxes
+        E.CornerTR1.From=Vector2.new(BX+BW,BY)     E.CornerTR1.To=Vector2.new(BX+BW-CLen,BY)       E.CornerTR1.Color=Col E.CornerTR1.Visible=Config.ESP.Boxes
+        E.CornerTR2.From=Vector2.new(BX+BW,BY)     E.CornerTR2.To=Vector2.new(BX+BW,BY+CLen)       E.CornerTR2.Color=Col E.CornerTR2.Visible=Config.ESP.Boxes
+        E.CornerBL1.From=Vector2.new(BX,BY+BH)     E.CornerBL1.To=Vector2.new(BX+CLen,BY+BH)       E.CornerBL1.Color=Col E.CornerBL1.Visible=Config.ESP.Boxes
+        E.CornerBL2.From=Vector2.new(BX,BY+BH)     E.CornerBL2.To=Vector2.new(BX,BY+BH-CLen)       E.CornerBL2.Color=Col E.CornerBL2.Visible=Config.ESP.Boxes
+        E.CornerBR1.From=Vector2.new(BX+BW,BY+BH)  E.CornerBR1.To=Vector2.new(BX+BW-CLen,BY+BH)    E.CornerBR1.Color=Col E.CornerBR1.Visible=Config.ESP.Boxes
+        E.CornerBR2.From=Vector2.new(BX+BW,BY+BH)  E.CornerBR2.To=Vector2.new(BX+BW,BY+BH-CLen)    E.CornerBR2.Color=Col E.CornerBR2.Visible=Config.ESP.Boxes
+
+        E.Box.Size=Vector2.new(BW,BH) E.Box.Position=Vector2.new(BX,BY) E.Box.Color=Color3.fromRGB(0,0,0) E.Box.Transparency=0.5 E.Box.Visible=Config.ESP.Boxes
+        E.BoxFill.Size=Vector2.new(BW,BH) E.BoxFill.Position=Vector2.new(BX,BY) E.BoxFill.Color=Col E.BoxFill.Visible=Config.ESP.Boxes and Config.ESP.BoxFill
+        E.Name.Position=Vector2.new(SP.X,HP2D.Y-17) E.Name.Text=player.DisplayName E.Name.Color=Col E.Name.Visible=Config.ESP.Names
+        E.Dist.Position=Vector2.new(SP.X,FP2D.Y+4) E.Dist.Text=GetDist(player).." m" E.Dist.Visible=Config.ESP.Distance
+
+        local HPct=math.clamp(hum.Health/hum.MaxHealth,0,1)
+        local HCol=Color3.fromRGB(math.floor(255*(1-HPct)),math.floor(220*HPct),30)
+        local BarH=BH*HPct
+        E.HealthBG.Size=Vector2.new(4,BH) E.HealthBG.Position=Vector2.new(BX-7,BY) E.HealthBG.Visible=Config.ESP.HealthBars
+        E.HealthBar.Size=Vector2.new(4,BarH) E.HealthBar.Position=Vector2.new(BX-7,BY+(BH-BarH)) E.HealthBar.Color=HCol E.HealthBar.Visible=Config.ESP.HealthBars
+
+        if head then
+            local hdSP,hdOn=Cam:WorldToViewportPoint(head.Position)
+            E.HeadDot.Position=Vector2.new(hdSP.X,hdSP.Y) E.HeadDot.Color=Col E.HeadDot.Visible=Config.ESP.HeadDot and hdOn
+            E.HeadDotOutline.Position=Vector2.new(hdSP.X,hdSP.Y) E.HeadDotOutline.Visible=Config.ESP.HeadDot and hdOn
+        else E.HeadDot.Visible=false E.HeadDotOutline.Visible=false end
+
+        E.Tracer.From=Vector2.new(ViewX/2,ViewY) E.Tracer.To=FP2D E.Tracer.Color=Col E.Tracer.Visible=Config.ESP.Tracers
+
+        for i,bone in ipairs(SkeletonMap) do
+            local b1=char:FindFirstChild(bone[1]) local b2=char:FindFirstChild(bone[2])
+            local BL=E.Bones[i]
+            if b1 and b2 and Config.ESP.Skeleton then
+                local s1,o1=Cam:WorldToViewportPoint(b1.Position)
+                local s2,o2=Cam:WorldToViewportPoint(b2.Position)
+                if o1 and o2 then
+                    BL.From=Vector2.new(s1.X,s1.Y) BL.To=Vector2.new(s2.X,s2.Y)
+                    BL.Color=Col BL.Visible=true
+                else BL.Visible=false end
+            else BL.Visible=false end
+        end
+    end
+end))
+
+Track(Players.PlayerAdded:Connect(function(p) InitPlayer(p) end))
+Track(Players.PlayerRemoving:Connect(function(p)
+    if ESPCache[p] then
+        for k,o in pairs(ESPCache[p]) do
+            if k=="Bones" then for _,b in ipairs(o) do pcall(function() b:Remove() end) end
+            elseif o.Visible~=nil then pcall(function() o:Remove() end) end
+        end
+        ESPCache[p]=nil
+    end
+end))
+for _,p in ipairs(Players:GetPlayers()) do if p~=LP then InitPlayer(p) end end
+
+-- ══════════════════════════════════════════
+-- AIMBOT
+-- ══════════════════════════════════════════
+local function AcquireTarget()
+    local Center=Vector2.new(Cam.ViewportSize.X/2,Cam.ViewportSize.Y/2)
+    local Best,BestDist=nil,Config.Aimbot.FOV
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p==LP or not IsAlive(p) then continue end
+        if not IsEnemy(p) then continue end
+        local char=p.Character
+        local target=char and char:FindFirstChild(Config.Aimbot.TargetPart)
+        local head=char and char:FindFirstChild("Head")
+        if not target then continue end
+        if Config.Aimbot.VisibleOnly and (not head or not IsVisible(head)) then continue end
+        local sp,on=Cam:WorldToViewportPoint(target.Position)
+        if not on then continue end
+        local d=(Vector2.new(sp.X,sp.Y)-Center).Magnitude
+        if d<BestDist then BestDist=d Best=target end
+    end
+    return Best
+end
+
+Track(RunService.RenderStepped:Connect(function()
+    if not Active or not Config.Aimbot.Enabled then return end
+    local key=Config.Aimbot.Key
+    local held=(typeof(key)=="EnumItem" and key.EnumType==Enum.UserInputType) and UserInputService:IsMouseButtonPressed(key)
+        or (typeof(key)=="EnumItem" and key.EnumType==Enum.KeyCode and UserInputService:IsKeyDown(key))
+    if not held then return end
+    local target=AcquireTarget()
+    if not target then return end
+    local _,on=Cam:WorldToViewportPoint(target.Position)
+    if not on then return end
+    Cam.CFrame=Cam.CFrame:Lerp(CFrame.lookAt(Cam.CFrame.Position,target.Position),1-Config.Aimbot.Smoothness)
+end))
+
+Track(RunService.Heartbeat:Connect(function()
+    if not Active or not Config.Aimbot.TriggerBot then return end
+    local target=AcquireTarget()
+    if not target then return end
+    local sp,on=Cam:WorldToViewportPoint(target.Position)
+    if not on then return end
+    local center=Vector2.new(Cam.ViewportSize.X/2,Cam.ViewportSize.Y/2)
+    if (Vector2.new(sp.X,sp.Y)-center).Magnitude<12 then mouse1click() end
+end))
+
+-- ══════════════════════════════════════════
+-- MAIN LOOP
+-- ══════════════════════════════════════════
+Track(RunService.Heartbeat:Connect(function()
+    if not Active then return end
+    local hum=GetHum() local char=GetChar() local root=GetRoot()
+
+    if Config.Player.GodMode and hum then hum.Health=hum.MaxHealth end
+    if hum then hum.WalkSpeed=Config.Player.SpeedEnabled and Config.Player.SpeedValue or 16 end
+
+    if Config.Aimbot.NoRecoil then
+        local tool=LP.Character and LP.Character:FindFirstChildOfClass("Tool")
+        if tool then
+            local gun=tool:FindFirstChildOfClass("LocalScript") or tool:FindFirstChildOfClass("Script")
+            -- Hook recoil by locking camera pitch
+            local cf=Cam.CFrame
+            local _,y,_=cf:ToEulerAnglesYXZ()
+            Cam.CFrame=CFrame.new(cf.Position)*CFrame.Angles(select(1,cf:ToEulerAnglesYXZ()),y,0)
+        end
+    end
+
+    if Config.Player.NoClip and char then
+        for _,p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then p.CanCollide=false end
+        end
+    end
+
+    -- Skin Changer
+    if Config.Skins.GunEnabled and char then
+        local tool=char:FindFirstChildOfClass("Tool")
+        if tool then
+            for _,p in ipairs(tool:GetDescendants()) do
+                if p:IsA("MeshPart") or p:IsA("SpecialMesh") or p:IsA("Part") then
+                    pcall(function()
+                        if p:IsA("SpecialMesh") then
+                            p.TextureId=Config.Skins.GunSkin
+                        else
+                            local mesh=p:FindFirstChildOfClass("SpecialMesh")
+                            if mesh then mesh.TextureId=Config.Skins.GunSkin end
+                            local decal=p:FindFirstChildOfClass("Decal")
+                            if decal then decal.Texture=Config.Skins.GunSkin end
+                        end
+                    end)
+                end
+            end
+        end
+    end
+
+    if Config.Skins.KnifeEnabled and char then
+        for _,tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") and (tool.Name:lower():find("knife") or tool.Name:lower():find("blade") or tool.Name:lower():find("melee")) then
+                for _,p in ipairs(tool:GetDescendants()) do
+                    pcall(function()
+                        if p:IsA("SpecialMesh") then
+                            p.TextureId=Config.Skins.KnifeSkin
+                        else
+                            local mesh=p:FindFirstChildOfClass("SpecialMesh")
+                            if mesh then mesh.TextureId=Config.Skins.KnifeSkin end
+                            local decal=p:FindFirstChildOfClass("Decal")
+                            if decal then decal.Texture=Config.Skins.KnifeSkin end
+                        end
+                    end)
+                end
+            end
+        end
+    end
+
+end))
+
+Track(UserInputService.JumpRequest:Connect(function()
+    if not Active or not Config.Player.InfJump then return end
+    local h=GetHum() if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+end))
+
+Track(LP.Idled:Connect(function()
+    if not Active or not Config.Player.AntiAFK then return end
+    VirtualUser:Button2Down(Vector2.zero,Cam.CFrame)
+    task.wait(0.1)
+    VirtualUser:Button2Up(Vector2.zero,Cam.CFrame)
+end))
+
+-- ══════════════════════════════════════════
+-- FLY
+-- ══════════════════════════════════════════
+local FlyBV,FlyBG,FlyCon
+local function BeginFlight()
+    local r=GetRoot() if not r then return end
+    FlyBV=Instance.new("BodyVelocity",r) FlyBV.Name="PhantomBV"
+    FlyBV.MaxForce=Vector3.new(1e9,1e9,1e9) FlyBV.Velocity=Vector3.zero
+    FlyBG=Instance.new("BodyGyro",r) FlyBG.Name="PhantomBG"
+    FlyBG.MaxTorque=Vector3.new(1e9,1e9,1e9) FlyBG.D=100 FlyBG.P=1e4 FlyBG.CFrame=r.CFrame
+    FlyCon=Track(RunService.RenderStepped:Connect(function()
+        if not Active or not Config.Player.FlyEnabled then
+            if FlyBV then FlyBV:Destroy() end
+            if FlyBG then FlyBG:Destroy() end
+            if FlyCon then FlyCon:Disconnect() end
+            return
+        end
+        local UI=UserInputService local d=Vector3.zero
+        if UI:IsKeyDown(Enum.KeyCode.W) then d=d+Cam.CFrame.LookVector end
+        if UI:IsKeyDown(Enum.KeyCode.S) then d=d-Cam.CFrame.LookVector end
+        if UI:IsKeyDown(Enum.KeyCode.A) then d=d-Cam.CFrame.RightVector end
+        if UI:IsKeyDown(Enum.KeyCode.D) then d=d+Cam.CFrame.RightVector end
+        if UI:IsKeyDown(Enum.KeyCode.Space)     then d=d+Vector3.new(0,1,0) end
+        if UI:IsKeyDown(Enum.KeyCode.LeftShift) then d=d-Vector3.new(0,1,0) end
+        FlyBV.Velocity=d*Config.Player.FlySpeed FlyBG.CFrame=Cam.CFrame
+    end))
+end
+
+local function EndFlight()
+    Config.Player.FlyEnabled=false
+    if FlyBV then FlyBV:Destroy() end
+    if FlyBG then FlyBG:Destroy() end
+    if FlyCon then FlyCon:Disconnect() end
+    local h=GetHum() if h then h:ChangeState(Enum.HumanoidStateType.Freefall) end
+end
+
+-- ══════════════════════════════════════════════════════════════
+-- ORION UI
+-- ══════════════════════════════════════════════════════════════
+local Window=OrionLib:MakeWindow({
+    Name            = "Phantom  ·  Blox Strike",
+    HidePremium     = false,
+    SaveConfig      = false,
+    ConfigFolder    = "PhantomBS",
+    IntroEnabled    = true,
+    IntroText       = "Phantom Panel",
+})
+
+-- ──────────────────────────────────────────
+-- ESP TAB
+-- ──────────────────────────────────────────
+local ESPTab=Window:MakeTab({Name="Visuals", Icon="rbxassetid://4483345998", Premium=false})
+
+ESPTab:AddToggle({Name="Enable ESP", Default=false, Color=Color3.fromRGB(255,50,50), Save=false,
+    Callback=function(v) Config.ESP.Enabled=v end})
+
+ESPTab:AddDivider()
+
+ESPTab:AddToggle({Name="Corner Boxes",    Default=true,  Callback=function(v) Config.ESP.Boxes=v end})
+ESPTab:AddToggle({Name="Box Fill",        Default=false, Callback=function(v) Config.ESP.BoxFill=v end})
+ESPTab:AddToggle({Name="Player Names",    Default=true,  Callback=function(v) Config.ESP.Names=v end})
+ESPTab:AddToggle({Name="Distance",        Default=true,  Callback=function(v) Config.ESP.Distance=v end})
+ESPTab:AddToggle({Name="Health Bars",     Default=true,  Callback=function(v) Config.ESP.HealthBars=v end})
+ESPTab:AddToggle({Name="Head Indicator",  Default=true,  Callback=function(v) Config.ESP.HeadDot=v end})
+ESPTab:AddToggle({Name="Tracers",         Default=false, Callback=function(v) Config.ESP.Tracers=v end})
+ESPTab:AddToggle({Name="Skeleton",        Default=false, Callback=function(v) Config.ESP.Skeleton=v end})
+
+ESPTab:AddDivider()
+
+ESPTab:AddToggle({Name="Visibility Check  [ Green=Seen · Red=Hidden ]", Default=false,
+    Callback=function(v) Config.ESP.VisibilityCheck=v end})
+ESPTab:AddToggle({Name="Team Colors  [ Blue=Friend · Red=Enemy ]", Default=true,
+    Callback=function(v) Config.ESP.TeamColor=v end})
+ESPTab:AddToggle({Name="Rainbow Mode", Default=false,
+    Callback=function(v) Config.ESP.RainbowMode=v end})
+
+ESPTab:AddColorpicker({Name="Enemy Color",  Default=Color3.fromRGB(255,50,50),  Callback=function(v) Config.ESP.EnemyColor=v end})
+ESPTab:AddColorpicker({Name="Team Color",   Default=Color3.fromRGB(50,200,255), Callback=function(v) Config.ESP.TeamCol=v end})
+
+-- ──────────────────────────────────────────
+-- AIMBOT TAB
+-- ──────────────────────────────────────────
+local AimTab=Window:MakeTab({Name="Aimbot", Icon="rbxassetid://4483345998", Premium=false})
+
+AimTab:AddToggle({Name="Enable Aimbot",       Default=false, Color=Color3.fromRGB(255,50,50),
+    Callback=function(v) Config.Aimbot.Enabled=v end})
+AimTab:AddToggle({Name="TriggerBot",          Default=false, Callback=function(v) Config.Aimbot.TriggerBot=v end})
+AimTab:AddToggle({Name="No Recoil",           Default=false, Callback=function(v) Config.Aimbot.NoRecoil=v end})
+AimTab:AddToggle({Name="Visible Targets Only",Default=false, Callback=function(v) Config.Aimbot.VisibleOnly=v end})
+
+AimTab:AddDivider()
+
+AimTab:AddToggle({Name="Show FOV Ring", Default=true, Callback=function(v) Config.Aimbot.ShowFOV=v end})
+AimTab:AddColorpicker({Name="FOV Ring Color", Default=Color3.fromRGB(255,255,255), Callback=function(v) Config.Aimbot.FOVColor=v end})
+AimTab:AddSlider({Name="FOV Radius",   Min=50,  Max=800, Default=150, Color=Color3.fromRGB(255,50,50), Increment=10, ValueName="px",
+    Callback=function(v) Config.Aimbot.FOV=v end})
+AimTab:AddSlider({Name="Smoothness",   Min=0,   Max=99,  Default=15,  Color=Color3.fromRGB(255,50,50), Increment=1,  ValueName="%",
+    Callback=function(v) Config.Aimbot.Smoothness=v/100 end})
+
+AimTab:AddDivider()
+
+AimTab:AddDropdown({Name="Target Hitbox",
+    Options={"Head","HumanoidRootPart","UpperTorso","LowerTorso","Torso"},
+    Default="Head",
+    Callback=function(v) Config.Aimbot.TargetPart=v end})
+
+AimTab:AddDropdown({Name="Activation Key",
+    Options={"RightClick","LeftClick","Q","E","F","C","X","Z"},
+    Default="RightClick",
+    Callback=function(v)
+        local Map={
+            RightClick=Enum.UserInputType.MouseButton2,
+            LeftClick=Enum.UserInputType.MouseButton1,
+            Q=Enum.KeyCode.Q, E=Enum.KeyCode.E, F=Enum.KeyCode.F,
+            C=Enum.KeyCode.C, X=Enum.KeyCode.X, Z=Enum.KeyCode.Z,
+        }
+        Config.Aimbot.Key=Map[v]
+    end})
+
+-- ──────────────────────────────────────────
+-- PLAYER TAB
+-- ──────────────────────────────────────────
+local PlTab=Window:MakeTab({Name="Player", Icon="rbxassetid://4483345998", Premium=false})
+
+PlTab:AddToggle({Name="God Mode",      Default=false, Callback=function(v) Config.Player.GodMode=v end})
+PlTab:AddToggle({Name="Speed Boost",   Default=false, Callback=function(v) Config.Player.SpeedEnabled=v end})
+PlTab:AddSlider({Name="Walk Speed", Min=16, Max=500, Default=50, Increment=1, ValueName="spd",
+    Callback=function(v) Config.Player.SpeedValue=v end})
+PlTab:AddToggle({Name="Infinite Jump", Default=false, Callback=function(v) Config.Player.InfJump=v end})
+PlTab:AddToggle({Name="No Clip",       Default=false, Callback=function(v) Config.Player.NoClip=v end})
+PlTab:AddToggle({Name="Anti-AFK",      Default=true,  Callback=function(v) Config.Player.AntiAFK=v end})
+
+PlTab:AddDivider()
+
+PlTab:AddToggle({Name="Fly", Default=false, Callback=function(v)
+    Config.Player.FlyEnabled=v
+    if v then BeginFlight() else EndFlight() end
+end})
+PlTab:AddSlider({Name="Fly Speed", Min=10, Max=600, Default=80, Increment=5, ValueName="spd",
+    Callback=function(v) Config.Player.FlySpeed=v end})
+
+-- ──────────────────────────────────────────
+-- SKIN CHANGER TAB
+-- ──────────────────────────────────────────
+local SkinTab=Window:MakeTab({Name="Skins", Icon="rbxassetid://4483345998", Premium=false})
+
+SkinTab:AddToggle({Name="Enable Gun Skin",   Default=false, Color=Color3.fromRGB(255,200,50),
+    Callback=function(v) Config.Skins.GunEnabled=v end})
+
+SkinTab:AddTextbox({Name="Gun Skin Asset ID", Default="0", TextDisappear=false,
+    Callback=function(v)
+        local id=tostring(v):gsub("[^%d]","")
+        Config.Skins.GunSkin="rbxassetid://"..id
+        OrionLib:MakeNotification({Name="Gun Skin",Content="Skin set to ID: "..id,Time=3})
+    end})
+
+SkinTab:AddDivider()
+
+SkinTab:AddToggle({Name="Enable Knife Skin", Default=false, Color=Color3.fromRGB(255,200,50),
+    Callback=function(v) Config.Skins.KnifeEnabled=v end})
+
+SkinTab:AddTextbox({Name="Knife Skin Asset ID", Default="0", TextDisappear=false,
+    Callback=function(v)
+        local id=tostring(v):gsub("[^%d]","")
+        Config.Skins.KnifeSkin="rbxassetid://"..id
+        OrionLib:MakeNotification({Name="Knife Skin",Content="Skin set to ID: "..id,Time=3})
+    end})
+
+SkinTab:AddDivider()
+
+SkinTab:AddLabel("To use skins:")
+SkinTab:AddLabel("1. Find a texture ID on toolbox")
+SkinTab:AddLabel("2. Paste the numbers only")
+SkinTab:AddLabel("3. Toggle the skin on")
+SkinTab:AddLabel("Note: Visual only, local client")
+
+-- ──────────────────────────────────────────
+-- MISC TAB
+-- ──────────────────────────────────────────
+local MiscTab=Window:MakeTab({Name="Misc", Icon="rbxassetid://4483345998", Premium=false})
+
+MiscTab:AddButton({Name="Terminate Session", Callback=function() Unload() end})
+MiscTab:AddButton({Name="Rejoin Server",     Callback=function() TeleportService:Teleport(game.PlaceId,LP) end})
+
+-- ══════════════════════════════════════════
+-- BOOT
+-- ══════════════════════════════════════════
+task.wait(0.5)
+OrionLib:MakeNotification({
+    Name    = "Phantom Panel  ·  Blox Strike",
+    Content = "Loaded successfully.\nAuthorized as " .. LP.DisplayName,
+    Time    = 6,
+})
+
+OrionLib:Init()
