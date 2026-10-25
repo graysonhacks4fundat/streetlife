@@ -38,6 +38,7 @@ local S = {
         Key=Enum.UserInputType.MouseButton2, Part="Head",
         FOVColor=Color3.fromRGB(255,255,255),
         TriggerBot=false,
+        VisibleOnly=false,
     },
     Misc = {
         Stamina=true, InfHealth=false, Speed=false, SpeedVal=50,
@@ -46,7 +47,7 @@ local S = {
         SuperJump=false, JumpPower=150,
         Invisible=false, FreezeAll=false,
         KillAura=false, KillAuraRange=20,
-        AutoHeal=false,
+        AutoHeal=false, NoRagdoll=false,
     },
     World = {
         Gravity=196.2, AntiGravity=false,
@@ -84,11 +85,8 @@ end
 
 local function HideESPObject(o)
     for k,v in pairs(o) do
-        if k=="bones" then
-            for _,b in ipairs(v) do b.Visible=false end
-        elseif v.Visible~=nil then
-            v.Visible=false
-        end
+        if k=="bones" then for _,b in ipairs(v) do b.Visible=false end
+        elseif v.Visible~=nil then v.Visible=false end
     end
 end
 
@@ -100,7 +98,11 @@ local function Unload()
     for _,c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
     for _,d in ipairs(DrawnObjects) do pcall(function() d:Remove() end) end
     local hum=Hum()
-    if hum then hum.WalkSpeed=16 hum.JumpPower=50 hum.AutoRotate=true end
+    if hum then
+        hum.WalkSpeed=16 hum.JumpPower=50 hum.AutoRotate=true
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+    end
     local char=Char()
     if char then
         for _,p in ipairs(char:GetDescendants()) do
@@ -183,8 +185,7 @@ end
 local function SetupPlayerESP(p)
     MakeESP(p)
     p.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        MakeESP(p)
+        task.wait(0.5) MakeESP(p)
     end)
     p.CharacterRemoving:Connect(function()
         if ESP[p] then HideESPObject(ESP[p]) end
@@ -206,46 +207,29 @@ Track(RunService.RenderStepped:Connect(function()
     if S.ESP.Rainbow then RainbowColor() end
 
     for p,o in pairs(ESP) do
-
-        -- Safety check: stale entry
-        if not p or not p.Parent then
-            HideESPObject(o)
-            continue
-        end
+        if not p or not p.Parent then HideESPObject(o) continue end
 
         local char=p.Character
         local root=char and char:FindFirstChild("HumanoidRootPart")
         local hum=char and char:FindFirstChildOfClass("Humanoid")
         local head=char and char:FindFirstChild("Head")
 
-        -- Hide if no character, dead, or ESP off
         if not(char and root and hum and hum.Health>0 and S.ESP.On) then
-            HideESPObject(o)
-            continue
+            HideESPObject(o) continue
         end
 
         local rp,on=Cam:WorldToViewportPoint(root.Position)
         local hp=Cam:WorldToViewportPoint(root.Position+Vector3.new(0,3,0))
         local fp=Cam:WorldToViewportPoint(root.Position-Vector3.new(0,3,0))
 
-        -- Hide if off screen
-        if not on then
-            HideESPObject(o)
-            continue
-        end
+        if not on then HideESPObject(o) continue end
 
-        -- Color logic
         local col
         if S.ESP.VisCheck then
-            local visible=head and IsVisible(head)
-            col=visible and Color3.fromRGB(0,255,100) or Color3.fromRGB(255,50,50)
-        elseif S.ESP.Rainbow then
-            col=Color3.fromHSV(hue,1,1)
-        elseif S.ESP.Team then
-            col=p.TeamColor.Color
-        else
-            col=S.ESP.Color
-        end
+            col=head and IsVisible(head) and Color3.fromRGB(0,255,100) or Color3.fromRGB(255,50,50)
+        elseif S.ESP.Rainbow then col=Color3.fromHSV(hue,1,1)
+        elseif S.ESP.Team then col=p.TeamColor.Color
+        else col=S.ESP.Color end
 
         local sp=Vector2.new(rp.X,rp.Y)
         local h2=Vector2.new(hp.X,hp.Y)
@@ -266,9 +250,7 @@ Track(RunService.RenderStepped:Connect(function()
         if head then
             local hdp,hdon=Cam:WorldToViewportPoint(head.Position)
             o.dot.Position=Vector2.new(hdp.X,hdp.Y) o.dot.Color=col o.dot.Visible=S.ESP.Head and hdon
-        else
-            o.dot.Visible=false
-        end
+        else o.dot.Visible=false end
 
         o.tracer.From=Vector2.new(Cam.ViewportSize.X/2,Cam.ViewportSize.Y)
         o.tracer.To=f2 o.tracer.Color=col o.tracer.Visible=S.ESP.Tracer
@@ -289,10 +271,7 @@ Track(RunService.RenderStepped:Connect(function()
     end
 end))
 
-Track(Players.PlayerAdded:Connect(function(p)
-    SetupPlayerESP(p)
-end))
-
+Track(Players.PlayerAdded:Connect(function(p) SetupPlayerESP(p) end))
 Track(Players.PlayerRemoving:Connect(function(p)
     if ESP[p] then
         for k,o in pairs(ESP[p]) do
@@ -302,10 +281,7 @@ Track(Players.PlayerRemoving:Connect(function(p)
         ESP[p]=nil
     end
 end))
-
-for _,p in ipairs(Players:GetPlayers()) do
-    if p~=LP then SetupPlayerESP(p) end
-end
+for _,p in ipairs(Players:GetPlayers()) do if p~=LP then SetupPlayerESP(p) end end
 
 -- ============================================================
 -- AIMBOT
@@ -315,8 +291,16 @@ local function GetTarget()
     local closest,closestD=nil,S.Aim.FOV
     for _,p in ipairs(Players:GetPlayers()) do
         if p==LP or not Alive(p) then continue end
-        local t=p.Character and p.Character:FindFirstChild(S.Aim.Part)
+        local char=p.Character
+        local t=char and char:FindFirstChild(S.Aim.Part)
+        local head=char and char:FindFirstChild("Head")
         if not t then continue end
+
+        -- Visible only check
+        if S.Aim.VisibleOnly then
+            if not head or not IsVisible(head) then continue end
+        end
+
         local pos,on=Cam:WorldToViewportPoint(t.Position)
         if not on then continue end
         local d=(Vector2.new(pos.X,pos.Y)-center).Magnitude
@@ -417,6 +401,15 @@ Track(RunService.Heartbeat:Connect(function()
         if p==LP then continue end
         local pr=GetRoot(p)
         if pr then pr.Anchored=S.Misc.FreezeAll end
+    end
+
+    if S.Misc.NoRagdoll and hum then
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        if hum:GetState()==Enum.HumanoidStateType.Ragdoll or
+           hum:GetState()==Enum.HumanoidStateType.FallingDown then
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
     end
 end))
 
@@ -533,6 +526,10 @@ local AT=Win:CreateTab("Aimbot","crosshair")
 AT:CreateSection("Aim Assistance")
 AT:CreateToggle({Name="Enable Aimbot",CurrentValue=false,Flag="a1",Callback=function(v) S.Aim.On=v end})
 AT:CreateToggle({Name="TriggerBot",CurrentValue=false,Flag="a2",Callback=function(v) S.Aim.TriggerBot=v end})
+AT:CreateToggle({Name="👁️ Visible Players Only",CurrentValue=false,Flag="a8",Callback=function(v)
+    S.Aim.VisibleOnly=v
+    Notify("Visible Only",v and "ON — Only targets you can see" or "OFF",3,"eye")
+end})
 AT:CreateDivider()
 AT:CreateToggle({Name="Show FOV Circle",CurrentValue=true,Flag="a3",Callback=function(v) S.Aim.ShowFOV=v end})
 AT:CreateColorPicker({Name="FOV Color",Color=Color3.fromRGB(255,255,255),Flag="ac",Callback=function(v) S.Aim.FOVColor=v FovCircle.Color=v end})
@@ -610,6 +607,7 @@ MT:CreateToggle({Name="🚀 Super Jump",CurrentValue=false,Flag="m8",Callback=fu
 MT:CreateSlider({Name="Jump Power",Range={50,500},Increment=10,Suffix=" power",CurrentValue=150,Flag="m9",Callback=function(v) S.Misc.JumpPower=v end})
 MT:CreateToggle({Name="👻 NoClip",CurrentValue=false,Flag="m10",Callback=function(v) S.Misc.NoClip=v Notify("NoClip",v and "ON" or "OFF",2,"layers") end})
 MT:CreateToggle({Name="🫥 Invisible (Local)",CurrentValue=false,Flag="m11",Callback=function(v) S.Misc.Invisible=v Notify("Invisible",v and "ON" or "OFF",3,"eye-off") end})
+MT:CreateToggle({Name="🪆 No Ragdoll",CurrentValue=false,Flag="m14",Callback=function(v) S.Misc.NoRagdoll=v Notify("No Ragdoll",v and "ON" or "OFF",2,"shield") end})
 MT:CreateDivider()
 MT:CreateToggle({Name="🛸 Fly",CurrentValue=false,Flag="m12",Callback=function(v)
     S.Misc.Fly=v
